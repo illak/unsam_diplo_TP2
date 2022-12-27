@@ -22,6 +22,7 @@ summary(raw_data)
 
 # Tokenización / Limpieza ----
 
+# Metodo clásico ----
 # PRIMERO USAMOS MÉTODO "CLÁSICO o TRADICIONAL": tokenización + stopwords
 # chequeo dimensiones (cantidad de filas luego de la tokenización)
 raw_data %>% 
