@@ -45,21 +45,14 @@ stop_words <- read_csv('https://raw.githubusercontent.com/Alir3z4/stop-words/mas
   mutate(word = stringi::stri_trans_general(word, "Latin-ASCII"))
 
 # removemos "stopwords"
-data_no_stopwords <- data_tokenizado %>% 
-  anti_join(stop_words)
+# data_no_stopwords <- data_tokenizado %>% 
+#   anti_join(stop_words)
 
-# chequeamos palabras más utilizadas por medio (TOP 10)
-top10_words_by_medio <- data_no_stopwords %>% 
-  group_by(medio, word) %>% 
-  summarise(
-    count = n()
-  ) %>% 
-  slice_max(order_by = count, n = 10)
 
 
 # vemos la información de manera visual
 plot_top_words <- function(dataset) {
-  
+  # chequeamos palabras más utilizadas por medio (TOP 10)
   top10_words_by_medio <- dataset %>% 
     group_by(medio, word) %>% 
     summarise(
@@ -88,7 +81,7 @@ plot_top_words <- function(dataset) {
   plot
 }
 
-plot_top_words(data_no_stopwords)
+#plot_top_words(data_no_stopwords)
 
 
 # usando otro dataset de "stopwords"
@@ -103,12 +96,12 @@ plot_top_words(data_no_stopwords2)
 
 
 # usando el dataset de "stopwords" de tidytext
-sw_tidytext <- get_stopwords("es")
-
-data_no_stopwords3 <- data_tokenizado %>% 
-  anti_join(sw_tidytext)
-
-plot_top_words(data_no_stopwords3)
+# sw_tidytext <- get_stopwords("es")
+# 
+# data_no_stopwords3 <- data_tokenizado %>% 
+#   anti_join(sw_tidytext)
+# 
+# plot_top_words(data_no_stopwords3)
 
 
 
@@ -126,10 +119,10 @@ bigramas_separados <- bigramas %>%
 
 bigramas_filtrados <- bigramas_separados %>%
   filter(!palabra1 %in% vacias$palabra,
-         !palabra2 %in% vacias$palabra) %>% 
-  unite(bigrama, palabra1, palabra2, sep = " ")
+         !palabra2 %in% vacias$palabra)
 
 top_bigramas_x_medio <- bigramas_filtrados %>% 
+  unite(bigrama, palabra1, palabra2, sep = " ")
   count(medio, bigrama, sort = TRUE)
 
 
@@ -144,5 +137,31 @@ top_bigramas_x_medio %>%
   scale_x_continuous(expand = expansion(mult = c(0, .4))) +
   facet_wrap(vars(medio), scales = "free_y")
   
-  
+# Análisis de grafos ----
+library(igraph)
+library(ggraph)
+library(grid)
 
+generar_grafo <- function(medio, freq) {
+  
+  grafo <- bigramas_filtrados %>%
+    filter(medio == {medio}) %>% 
+    count(palabra1, palabra2, sort = TRUE) %>% 
+    filter(n > {freq}) %>%
+    graph_from_data_frame()
+  
+  
+  ggraph(grafo, layout = "nicely") +
+    geom_edge_link(aes(edge_alpha = n),
+                   show.legend = FALSE,
+                   arrow = arrow(type = "closed",
+                                 length = unit(3, "mm"))) +
+    geom_node_point(color = "lightblue", size = 3) +
+    geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+    theme_void()
+}
+
+# grafo para clarín
+generar_grafo("pagina12", 100)
+  
+  
