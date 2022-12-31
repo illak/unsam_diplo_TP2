@@ -163,5 +163,110 @@ generar_grafo <- function(medio, freq) {
 
 # grafo para clarín
 generar_grafo("pagina12", 100)
+
+
+# Enfoque tf-idf ----
+
+mystopwords <- tibble(word = c("embed","jpg","loading","hd","protected",
+                               "comentar","guardar"))
+
+palabras_medio <- data_tokenizado %>%
+  # stopwords (revisar con y sin)
+  anti_join(vacias %>% rename(word = palabra)) %>% 
+  # "elimino" números
+  mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
+  filter(!word %in% blacklist) %>% 
+  count(medio, word)
+
+palabras_medio <- palabras_medio %>% 
+  bind_tf_idf(word, medio, n)
+
+
+palabras_medio %>% 
+  group_by(medio) %>% 
+  slice_max(order_by = tf_idf, n = 10) %>% 
+  ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
+  geom_col(aes(fill = medio), show.legend = FALSE) +
+  #geom_text(aes(label = tf_idf), hjust = -.1) +
+  # para ordenar las barras al interior de cada facet (se usa en conjunto con "reorder_within")
+  scale_y_reordered() +
+  # expandimos un poco a la derecha (40%) para que entre el texto de la barra
+  scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+  guides(fill = "none") +
+  facet_wrap(vars(medio), scales = "free_y") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  )
+
+# análisis por fecha (mes)
+
+top_words_medio_mes <- function(mes, n = 10){
+  df <- data_tokenizado %>%
+    # "elimino" números
+    mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
+    filter(!word %in% blacklist) %>%
+    filter(mes == {mes}) %>% 
+    count(medio, word) %>% 
+    ungroup() %>% 
+    bind_tf_idf(word, medio, n) %>% 
+    group_by(medio) %>% 
+    slice_max(order_by = tf_idf, n = {n})
   
+  df
+}
+
+
+top_words_medio_mes(9) %>% 
+  ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
+  geom_col(aes(fill = medio), show.legend = FALSE) +
+  #geom_text(aes(label = tf_idf), hjust = -.1) +
+  # para ordenar las barras al interior de cada facet (se usa en conjunto con "reorder_within")
+  scale_y_reordered() +
+  # expandimos un poco a la derecha (40%) para que entre el texto de la barra
+  scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+  guides(fill = "none") +
+  facet_wrap(vars(medio), scales = "free_y") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  )
+
+
+
+
+top_words_medio_dia_mes <- function(dia, mes, n = 10){
+  df <- data_tokenizado %>%
+    # "elimino" números
+    mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
+    filter(!word %in% blacklist) %>%
+    filter(dia == {dia}, mes == {mes}) %>% 
+    count(medio, word) %>% 
+    ungroup() %>% 
+    bind_tf_idf(word, medio, n) %>% 
+    group_by(medio) %>% 
+    slice_max(order_by = tf_idf, n = {n})
   
+  df
+}
+
+top_words_medio_dia_mes(12,9) %>% 
+  ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
+  geom_col(aes(fill = medio), show.legend = FALSE) +
+  #geom_text(aes(label = tf_idf), hjust = -.1) +
+  # para ordenar las barras al interior de cada facet (se usa en conjunto con "reorder_within")
+  scale_y_reordered() +
+  # expandimos un poco a la derecha (40%) para que entre el texto de la barra
+  scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+  guides(fill = "none") +
+  facet_wrap(vars(medio), scales = "free") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  )
