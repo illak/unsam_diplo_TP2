@@ -308,12 +308,12 @@ medios_tdm <- cuenta_palabras %>%
 library(topicmodels)
 # usamos LDA para generar un modelo para los 8 medios (8 tópicos)
 # OJO: la siguiente línea demora (y consume) bastante!
-medios_lda <- LDA(medios_tdm, k = 8, control = list(seed = 42))
+medios_lda <- LDA(medios_tdm, k = 6, control = list(seed = 42))
 medios_lda
 
 medios_temas <- tidy(medios_lda, matrix = "beta")
 
-# top 5 temas en cada medio
+# top palabras temas en cada topico
 top_temas <- medios_temas %>% 
   group_by(topic) %>% 
   slice_max(beta, n = 5) %>% 
@@ -322,6 +322,16 @@ top_temas <- medios_temas %>%
 
 top_temas %>% View()
 
+top_temas %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+
+
+# Una forma de ver los términos más utilizados en cada tópico
+as.data.frame(terms(medios_lda, 6)) %>% View()
 
 
 # GAMMA
