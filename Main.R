@@ -334,3 +334,8 @@ top_temas %>%
 
 # Una forma de ver los términos más utilizados en cada tópico
 as.data.frame(terms(medios_lda, 10)) %>% View()
+
+
+# GAMMA
+medios_gamma <- tidy(medios_lda, matrix = "gamma")
+medios_gamma
