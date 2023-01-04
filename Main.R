@@ -339,3 +339,8 @@ as.data.frame(terms(medios_lda, 10)) %>% View()
 # GAMMA
 medios_gamma <- tidy(medios_lda, matrix = "gamma")
 medios_gamma
+
+
+#TODO debemos separar los documentos por MEDIO y luego promediar el tópico de cada uno,
+# quizás luego se puede volver a traer el dato de la fecha usando ID y
+# luego se puede hacer un análisis temporal de tópicos
