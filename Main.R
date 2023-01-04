@@ -297,19 +297,22 @@ data_clean <- data_tokenizado %>%
   anti_join(mystopwords)
 
 
-cuenta_palabras <- data_clean %>% 
-  count(medio, word, sort = TRUE)
-
-# LDA en medios
-# genero matriz DocumentTermMatrix
-medios_tdm <- cuenta_palabras %>% 
-  cast_dtm(medio, word, n)
-
+# Topic Modeling por noticia ----
 library(topicmodels)
-# usamos LDA para generar un modelo para los 8 medios (8 tópicos)
-# OJO: la siguiente línea demora (y consume) bastante!
-medios_lda <- LDA(medios_tdm, k = 6, control = list(seed = 42))
+
+cuenta_palabras2 <- data_clean %>% 
+  unite(document, medio, id) %>% 
+  count(document, word, sort = TRUE)
+
+medios_tdm <- cuenta_palabras2 %>% 
+  cast_dtm(document, word, n)
+
+# 10 tópicos
+medios_lda <- LDA(medios_tdm, k = 10, control = list(seed = 42))
 medios_lda
+
+# guardamos el modelo (pesado!)
+saveRDS(medios_lda, "model_LDA.rda")
 
 medios_temas <- tidy(medios_lda, matrix = "beta")
 
@@ -329,11 +332,5 @@ top_temas %>%
   facet_wrap(~ topic, scales = "free") +
   scale_y_reordered()
 
-
 # Una forma de ver los términos más utilizados en cada tópico
-as.data.frame(terms(medios_lda, 6)) %>% View()
-
-
-# GAMMA
-medios_gamma <- tidy(medios_lda, matrix = "gamma")
-medios_gamma
+as.data.frame(terms(medios_lda, 10)) %>% View()
