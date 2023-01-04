@@ -168,15 +168,16 @@ generar_grafo("pagina12", 100)
 # Enfoque tf-idf ----
 
 mystopwords <- tibble(word = c("embed","jpg","loading","hd","protected",
-                               "comentar","guardar"))
+                               "comentar","guardar","leé","minutouno","páginai","lxs",
+                               "mirá"))
 
 palabras_medio <- data_tokenizado %>%
   # stopwords (revisar con y sin)
   anti_join(vacias %>% rename(word = palabra)) %>% 
   # "elimino" números
   mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
-  filter(!word %in% blacklist) %>% 
-  count(medio, word)
+  anti_join(mystopwords) %>%  
+  count(medio, word, sort = TRUE)
 
 palabras_medio <- palabras_medio %>% 
   bind_tf_idf(word, medio, n)
@@ -203,23 +204,25 @@ palabras_medio %>%
 
 # análisis por fecha (mes)
 
-top_words_medio_mes <- function(mes, n = 10){
+top_words_medio_mes <- function(mes_filter, n_top = 10){
   df <- data_tokenizado %>%
+    filter(mes == mes_filter) %>% 
+    # stopwords (revisar con y sin)
+    anti_join(vacias %>% rename(word = palabra)) %>% 
     # "elimino" números
     mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
-    filter(!word %in% blacklist) %>%
-    filter(mes == {mes}) %>% 
-    count(medio, word) %>% 
+    anti_join(mystopwords) %>%  
+    count(medio, word, sort = TRUE) %>% 
     ungroup() %>% 
     bind_tf_idf(word, medio, n) %>% 
     group_by(medio) %>% 
-    slice_max(order_by = tf_idf, n = {n})
+    slice_max(order_by = tf_idf, n = n_top)
   
   df
 }
 
 
-top_words_medio_mes(9) %>% 
+top_words_medio_mes(7) %>% 
   ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
   geom_col(aes(fill = medio), show.legend = FALSE) +
   #geom_text(aes(label = tf_idf), hjust = -.1) +
@@ -239,17 +242,19 @@ top_words_medio_mes(9) %>%
 
 
 
-top_words_medio_dia_mes <- function(dia, mes, n = 10){
+top_words_medio_dia_mes <- function(dia_f, mes_f, top_n = 10){
   df <- data_tokenizado %>%
+    filter(dia == dia_f, mes == mes_f) %>% 
+    # stopwords (revisar con y sin)
+    anti_join(vacias %>% rename(word = palabra)) %>% 
     # "elimino" números
     mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
-    filter(!word %in% blacklist) %>%
-    filter(dia == {dia}, mes == {mes}) %>% 
+    anti_join(mystopwords) %>%  
     count(medio, word) %>% 
     ungroup() %>% 
     bind_tf_idf(word, medio, n) %>% 
     group_by(medio) %>% 
-    slice_max(order_by = tf_idf, n = {n})
+    slice_max(order_by = tf_idf, n = top_n)
   
   df
 }
@@ -270,3 +275,55 @@ top_words_medio_dia_mes(12,9) %>%
     axis.text.x = element_blank(),
     panel.grid = element_blank()
   )
+
+
+
+
+# TOPIC MODELING ----
+# limpiamos el dataset
+# más stopwords!!
+stopwords_extra <- read.delim("https://raw.githubusercontent.com/Alir3z4/stop-words/master/spanish.txt",
+                              col.names = c("word"))
+
+data_clean <- data_tokenizado %>%
+  # removemos stopwords
+  anti_join(vacias %>% rename(word = palabra)) %>% 
+  # removemos stopwords extra
+  anti_join(stopwords_extra) %>% 
+  # "elimino" números
+  mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
+  filter(!is.na(word)) %>% 
+  # removemos algunas palabras detectadas "a mano"
+  anti_join(mystopwords)
+
+
+cuenta_palabras <- data_clean %>% 
+  count(medio, word, sort = TRUE)
+
+# LDA en medios
+# genero matriz DocumentTermMatrix
+medios_tdm <- cuenta_palabras %>% 
+  cast_dtm(medio, word, n)
+
+library(topicmodels)
+# usamos LDA para generar un modelo para los 8 medios (8 tópicos)
+# OJO: la siguiente línea demora (y consume) bastante!
+medios_lda <- LDA(medios_tdm, k = 8, control = list(seed = 42))
+medios_lda
+
+medios_temas <- tidy(medios_lda, matrix = "beta")
+
+# top 5 temas en cada medio
+top_temas <- medios_temas %>% 
+  group_by(topic) %>% 
+  slice_max(beta, n = 5) %>% 
+  ungroup() %>% 
+  arrange(topic, -beta)
+
+top_temas %>% View()
+
+
+
+# GAMMA
+medios_gamma <- tidy(medios_lda, matrix = "gamma")
+medios_gamma
