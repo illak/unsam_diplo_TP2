@@ -1,0 +1,236 @@
+---
+title: "Diplo UNSAM - TP2"
+author: "Illak Zapata"
+date: "2023-01-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Consignas
+
+A partir del corpus deberán:
+* Cargar los datos
+* Preprocesarlos (normalizar texto, eliminar stopwords)
+* Generar una matriz token-por-fila para cada documento
+
+A continuación deberán responder las siguientes preguntas:
+
+* ¿Cuáles son las palabras más utilizadas en cada uno de los medios? ¿Pueden verse diferencias? (Tener en cuenta las diferentes métricas trabajadas en el curso: tf, tf-idf, etc.)
+* Generar las visualizaciones que considere más pertinentes para responder la pregunta
+* ¿Cuáles son los tópicos principales en el corpus? ¿Pueden evidenciar diferencias en cada uno de los medios? ¿Cómo evolucionan los tópicos en el tiempo?
+* Explicar qué método se utilizó para responder la pregunta, cuáles son los supuestos del mismo.
+* Generar las visualizaciones más adecuadas para responder a las preguntas
+
+
+# Librerías
+
+```{r librerias, message=FALSE}
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(tidytext) # Text Mining using 'dplyr', 'ggplot2', and Other Tidy Tools
+library(igraph) # Network Analysis and Visualization
+library(ggraph) # An Implementation of Grammar of Graphics for Graphs and Networks
+library(grid) # The Grid Graphics Package
+library(topicmodels) # Topic Models
+library(knitr) # A General-Purpose Package for Dynamic Report Generation in R
+```
+
+# Datasets
+
+Corpus de noticias scrapeadas entre julio y septiembre de 2019
+```{r datasets}
+raw_data <- read_csv("data/M5_corpus_medios.csv")
+```
+Exploramos rápidamente el dataset de noticias
+
+```{r}
+# chequeo variables del dataset
+names(raw_data)
+
+# vistazo rápido del dataset
+raw_data %>% 
+  head(10)
+
+# chequeo resumen del dataset
+summary(raw_data)
+```
+# Limpieza inicial
+
+En el primer vistazo de las 10 primeras filas del dataset de noticias, podemos
+identificar algunos artículos que no se han descargado correctamente (por el proceso
+scrapeador). Como primer medida vamos a quitar estos registros
+
+```{r limpieza 1}
+raw_data_clean <- raw_data %>% 
+  filter(!str_detect(texto, "404 Client Error"))
+
+raw_data_clean
+```
+
+De esta manera se redujo el tamaño a 6976 filas.
+
+Además observando el "summary" de los datos, podemos notar que la variable fecha
+contiene varios NA's. También filtraremos estos casos.
+
+```{r limpieza 2}
+raw_data_clean <- raw_data_clean %>% 
+  filter(!is.na(fecha))
+
+raw_data_clean
+
+summary(raw_data_clean)
+```
+
+Finalmente nos quedamos con 6894 registros.
+
+# Stopwords
+
+A continuación vamos a cargar 2 listados de "stopwords" o *palabras vacías*
+
+El primer listado proviene del libro online [Cuentapalabras](http://www.aic.uva.es/cuentapalabras/) (Estilometría y análisis de texto con R para filólogos) 
+
+```{r stopwords cuentapalabras, message=FALSE}
+stopwords <- read_csv(
+  "https://raw.githubusercontent.com/7PartidasDigital/AnaText/master/datos/diccionarios/vacias.txt",
+  locale = default_locale(),
+  col_names = c("word"))
+```
+y el segundo listado
+proviene de [un repositorio y sus contribuciones](https://github.com/Alir3z4/stop-words) a las stopwords en varios idiomas.
+
+```{r stopwords repo, message=FALSE}
+stopwords_extra <- read.delim(
+  "https://raw.githubusercontent.com/Alir3z4/stop-words/master/spanish.txt", 
+  col.names = c("word"))
+
+```
+
+y luego unimos ambos dataframes en un único listado de stopwords
+
+```{r stopwords definitivo, message=FALSE}
+stopwords_final <- bind_rows(stopwords, stopwords_extra) %>% 
+  unique()
+
+# y generamos un vector
+stopwords_listado <- stopwords_final$word
+```
+
+
+# EDA (Análisis Exploratorio de los Datos)
+
+Vamos a realizar un análisis inicial para conocer un poquito mejor el dataset
+de noticias.
+
+## Análisis usando bigramas (y gráfos)
+
+Vamos a realizar este análisis con **todo** el dataset (sin limpieza), esto para
+conocer de forma "aproximada" las distintas combinaciones de palabras que podemos
+encontrarnos en las noticias. Esto con la esperanza de detectar ciertos patrones 
+que luego tendremos en cuenta en una segunda instancia de limpieza (quizás al remover
+stopwords). Por otra parte, puede resultar interesante visualizar la ocurrencia de
+bigramas en cada medio. Mediante la visualización suelen surgir patrones interesantes
+y que pueden influir en la toma de decisiones y en la formulación de conclusiones
+en un análisis.
+
+```{r bigramas}
+bigramas <- raw_data %>%
+  unnest_tokens(bigrama,
+                texto,
+                token = "ngrams",
+                n = 2)
+
+bigramas_separados <- bigramas %>%
+  separate(bigrama,
+           c("palabra1", "palabra2"),
+           sep = " ")
+
+bigramas_filtrados <- bigramas_separados %>%
+  filter(!palabra1 %in% stopwords_listado,
+         !palabra2 %in% stopwords_listado)
+
+```
+
+Veamos una visualización "clásica" de los bigramas (top 10 por medio)
+
+```{r bigramas - viz}
+top_bigramas_x_medio <- bigramas_filtrados %>%
+  unite(bigrama, palabra1, palabra2, sep = " ") %>% 
+  count(medio, bigrama, sort = TRUE)
+
+
+top_bigramas_x_medio %>%
+  mutate(medio = as.factor(medio)) %>%
+  group_by(medio) %>%
+  top_n(10, wt = n) %>%
+  ggplot(aes(x = n, y = reorder_within(bigrama, n, medio))) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -.1) +
+  scale_y_reordered() +
+  scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+  labs(y = NULL) +
+  facet_wrap(vars(medio), scales = "free_y") +
+  theme_minimal()
+
+```
+
+Ahora vamos a generar una función que genere **gráfos** por medio, es decir, a la función
+le pasamos un medio en particular, por ejemplo "clarin" y la función realizará
+el grafo correspondiente de los bigramas que mayormente ocurren en dicho medio.
+ 
+```{r bigramas - grafo, warning=FALSE}
+generar_grafo <- function(medio, freq) {
+  
+  grafo <- bigramas_filtrados %>%
+    filter(medio == medio) %>% 
+    count(palabra1, palabra2, sort = TRUE) %>% 
+    filter(n > freq) %>%
+    graph_from_data_frame()
+  
+  
+  ggraph(grafo, layout = "nicely") +
+    geom_edge_link(aes(edge_alpha = n),
+                   show.legend = FALSE,
+                   arrow = arrow(type = "closed",
+                                 length = unit(3, "mm"))) +
+    geom_node_point(color = "lightblue", size = 3) +
+    geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+    theme_void() 
+}
+
+```
+Nuestra función además recibe como parámetro el número de frecuencia mínimo de 
+ocurrencia de bigramas.
+
+Generemos el grafo para "clarin"
+
+```{r grafo clarin, warning=FALSE, fig.align='center'}
+# grafo para "clarin"
+generar_grafo("clarin", 150)
+```
+
+generemos el de "pagina12"
+
+```{r grafo p12, warning=FALSE, fig.align='center'}
+# grafo para "pagina12"
+generar_grafo("pagina12", 150)
+```
+
+y veamos el grafo para "minutouno"
+
+```{r grafo minutouno, warning=FALSE, fig.align='center'}
+# grafo para minutouno"
+generar_grafo("minutouno", 150)
+```
+
+
+
+# Tokenización + limpieza de stopwords
+ 
+Ahora vamos a proceder con el proceso de tokenización y luego con la limpieza
+de stopwords.
+ 
+ 
+ 
