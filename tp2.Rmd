@@ -40,7 +40,7 @@ library(knitr) # A General-Purpose Package for Dynamic Report Generation in R
 
 # Datasets
 
-Corpus de noticias scrapeadas entre julio y septiembre de 2019
+Corpus de noticias "scrapeadas" entre julio y septiembre de 2019
 ```{r datasets}
 raw_data <- read_csv("data/M5_corpus_medios.csv")
 ```
@@ -72,8 +72,8 @@ raw_data_clean
 
 De esta manera se redujo el tamaño a 6976 filas.
 
-Además observando el "summary" de los datos, podemos notar que la variable fecha
-contiene varios NA's. También filtraremos estos casos.
+Además observando el `summary` de los datos, podemos notar que la variable fecha
+contiene varios `NA`'s. También filtraremos estos casos.
 
 ```{r limpieza 2}
 raw_data_clean <- raw_data_clean %>% 
@@ -88,7 +88,7 @@ Finalmente nos quedamos con 6894 registros.
 
 # Stopwords
 
-A continuación vamos a cargar 2 listados de "stopwords" o *palabras vacías*
+A continuación vamos a cargar 2 listados de `stopwords` o *palabras vacías*
 
 El primer listado proviene del libro online [Cuentapalabras](http://www.aic.uva.es/cuentapalabras/) (Estilometría y análisis de texto con R para filólogos) 
 
@@ -98,8 +98,9 @@ stopwords <- read_csv(
   locale = default_locale(),
   col_names = c("word"))
 ```
+
 y el segundo listado
-proviene de [un repositorio y sus contribuciones](https://github.com/Alir3z4/stop-words) a las stopwords en varios idiomas.
+proviene de [un repositorio y sus contribuciones](https://github.com/Alir3z4/stop-words) a las `stopwords` en varios idiomas.
 
 ```{r stopwords repo, message=FALSE}
 stopwords_extra <- read.delim(
@@ -108,7 +109,7 @@ stopwords_extra <- read.delim(
 
 ```
 
-y luego unimos ambos dataframes en un único listado de stopwords
+y luego unimos ambos dataframes en un único listado de `stopwords`
 
 ```{r stopwords definitivo, message=FALSE}
 stopwords_final <- bind_rows(stopwords, stopwords_extra) %>% 
@@ -177,7 +178,7 @@ top_bigramas_x_medio %>%
 ```
 
 Ahora vamos a generar una función que genere **gráfos** por medio, es decir, a la función
-le pasamos un medio en particular, por ejemplo "clarin" y la función realizará
+le pasamos un medio en particular, por ejemplo `"clarin"` y la función realizará
 el grafo correspondiente de los bigramas que mayormente ocurren en dicho medio.
  
 ```{r bigramas - grafo, warning=FALSE}
@@ -204,33 +205,218 @@ generar_grafo <- function(medio, freq) {
 Nuestra función además recibe como parámetro el número de frecuencia mínimo de 
 ocurrencia de bigramas.
 
-Generemos el grafo para "clarin"
+Generemos el grafo para `clarin`
 
 ```{r grafo clarin, warning=FALSE, fig.align='center'}
 # grafo para "clarin"
 generar_grafo("clarin", 150)
 ```
 
-generemos el de "pagina12"
+generemos el de `pagina12`
 
 ```{r grafo p12, warning=FALSE, fig.align='center'}
 # grafo para "pagina12"
 generar_grafo("pagina12", 150)
 ```
 
-y veamos el grafo para "minutouno"
+y finalmente veamos el grafo para `minutouno`
 
 ```{r grafo minutouno, warning=FALSE, fig.align='center'}
 # grafo para minutouno"
 generar_grafo("minutouno", 150)
 ```
 
+# Enfoque tradicional (TF-IDF)
+
+El estadístico `tf-idf` tiene como propósito medir la importancia de una palabra que
+ocurre en un documento, en una colección de documentos (o corpus), en nuestro caso,
+vamos a ver la "importancia que cada medio le da a cada palabra". Notar que podríamos
+haber realizado este análisis para cada noticia, pero el objetivo en este caso
+será diferenciar por medio y finalmente este análisis contribuirá a serguir limpiando
+el dataset para luego hacer `topic modeling`.
+
+```{r tf-idf}
+# tokenizo
+data_tokenizado <- raw_data %>% 
+  unnest_tokens(word, texto)
+
+palabras_medio <- data_tokenizado %>%
+  count(medio, word, sort = TRUE)
+
+palabras_medio <- palabras_medio %>% 
+  bind_tf_idf(word, medio, n)
+
+palabras_medio %>% 
+  group_by(medio) %>% 
+  slice_max(order_by = tf_idf, n = 10) %>% 
+  ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
+  geom_col(aes(fill = medio), show.legend = FALSE) +
+  #geom_text(aes(label = tf_idf), hjust = -.1) +
+  # para ordenar las barras al interior de cada facet (se usa en conjunto con "reorder_within")
+  scale_y_reordered() +
+  # expandimos un poco a la derecha (40%) para que entre el texto de la barra
+  scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+  guides(fill = "none") +
+  facet_wrap(vars(medio), scales = "free_y") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  )
+
+
+```
+
+Podemos identificar algunas palabras que no quisieramos considerar en nuestro análisis,
+como por ejemplo, `jpg`, `loading`, `hd`, etc. Vamos a considerarlas para la
+limpieza definitiva del dataset.
 
 
 # Tokenización + limpieza de stopwords
  
 Ahora vamos a proceder con el proceso de tokenización y luego con la limpieza
-de stopwords.
+de `stopwords`. Como vimos en el análisis de bigramas, en nuestros documentos existen
+números y vamos a removerlos de nuestro análisis. Además, pudimos identificar del
+enfoque "tradicional" `tf-idf`, algunas palabras que no deberían ser consideradas en
+nuestro análisis, por lo que vamos a removerlas.
  
  
+```{r}
+
+mystopwords <- tibble(word = c("embed","jpg","loading","hd","protected",
+                               "comentar","guardar","leé","minutouno","páginai","lxs",
+                               "mirá","email","www"))
+
+# tokenizo
+data_tokenizado <- raw_data %>% 
+  unnest_tokens(word, texto)
+
+# limpieza definitiva
+data_clean <- data_tokenizado %>%
+  # removemos stopwords
+  anti_join(stopwords_final) %>% 
+  # "elimino" números
+  mutate(word = str_extract(word, "[[:alpha:]]+")) %>%
+  filter(!is.na(word)) %>% 
+  # removemos algunas palabras detectadas "a mano"
+  anti_join(mystopwords)
+```
  
+
+# Un enfoque naive
+
+Veamos rápidamente una forma de obtener el top 10 de palabras más utilizadas
+por cada medio en un mes en particular (usando el enfoque tf-idf). Para esto 
+vamos a definir una función que nos permita pasarle el mes como argumento.
+
+
+```{r función top_words_medio_mes}
+top_words_medio_mes <- function(mes_filter, n_top = 10){
+  df <- data_clean %>%
+    filter(mes == mes_filter) %>% 
+    count(medio, word, sort = TRUE) %>% 
+    bind_tf_idf(word, medio, n) %>% 
+    group_by(medio) %>% 
+    slice_max(order_by = tf_idf, n = n_top)
+  
+  df %>% 
+    ggplot(aes(x = tf_idf, y = reorder_within(word, tf_idf, medio))) +
+    geom_col(aes(fill = medio), show.legend = FALSE) +
+    #geom_text(aes(label = tf_idf), hjust = -.1) +
+    # para ordenar las barras al interior de cada facet (se usa en conjunto con "reorder_within")
+    scale_y_reordered() +
+    # expandimos un poco a la derecha (40%) para que entre el texto de la barra
+    scale_x_continuous(expand = expansion(mult = c(0, .4))) +
+    guides(fill = "none") +
+    facet_wrap(vars(medio), scales = "free_y") +
+    labs(x = NULL, y = NULL) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_blank(),
+      panel.grid = element_blank()
+    )
+}
+```
+
+Y ahora llamemos a nuestra función con algunas combinaciones. Veamos por ejemplo
+para el mes 7
+
+```{r}
+top_words_medio_mes(7)
+```
+
+y veamos para el mes 9
+
+```{r}
+top_words_medio_mes(9)
+```
+
+No hay mucho para destacar del resultado obtenido si únicamente nos enfocamos en
+la métrica de tf-idf por medio. Por esto vamos a realizar un análisis más avanzado 
+usando `topic modeling`.
+
+# Topic modeling
+
+A continuación vamos a hacer uso de un modelo LDA (del paquete `topicmodels`), el
+cual es un método para ajustar un modelo de tópicos.
+
+LDA es uno de los algoritmos más cómunes para `topic modeling` y se guía por dos principios:
+
+* Todo documento es una mezcla de tópicos
+* Todo tópico es una mezcla de palabras
+
+Vamos a dejar de lado la consideración del medio únicamente y ahora cada documento 
+va a estar dentificado por una combinación del medio y el ID de la noticia.
+
+Luego vamos a generar un modelo LDA para 10 tópicos. Por razones de eficiencia y
+debido a que es un proceso que demora bastante, vamos a guardar el modelo resultante
+para su posterior carga.
+
+```{r topic-modeling}
+
+if (file.exists("model_LDA.rda")) {
+  
+  medios_lda <- readRDS("model_LDA.rda")
+  
+} else {
+  cuenta_palabras <- data_clean %>% 
+  unite(document, medio, id) %>% 
+  count(document, word, sort = TRUE)
+
+  medios_tdm <- cuenta_palabras %>% 
+    cast_dtm(document, word, n)
+  
+  # 10 tópicos
+  medios_lda <- LDA(medios_tdm, k = 10, control = list(seed = 42))
+  medios_lda
+  
+  # guardamos el modelo (pesado!)
+  saveRDS(medios_lda, "model_LDA.rda")
+}
+
+```
+
+
+```{r}
+medios_temas <- tidy(medios_lda, matrix = "beta")
+
+# top palabras temas en cada topico
+top_temas <- medios_temas %>% 
+  group_by(topic) %>% 
+  slice_max(beta, n = 10) %>% 
+  ungroup() %>% 
+  arrange(topic, -beta)
+
+# Una forma de ver los términos más utilizados en cada tópico
+as.data.frame(terms(medios_lda, 10))
+
+
+top_temas %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
