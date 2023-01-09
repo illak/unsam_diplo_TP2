@@ -453,7 +453,7 @@ Ahora vamos a obtener la fecha de cada noticia, a partir del dataset inicial
 medios_temas_fecha <- medios_temas %>%
   # para que coincida el tipo de "id" en cada df
   mutate(id = as.double(id)) %>% 
-  left_join(raw_data_clean %>% select(id, fecha, mes, dia))
+  left_join(raw_data_clean %>% select(id, fecha, mes, dia, texto))
 
 head(medios_temas_fecha)
 ```
@@ -488,3 +488,58 @@ topicos_medio %>%
 ```
 
 De esta manera podemos observar para cada medio, qué tópico o tema predomina mayormente.
+
+Veamos la misma información pero ahora usando otro tipo de viz.
+
+```{r gráfico de radar}
+library(ggradar)
+
+df_radar <- medios_temas_fecha %>% 
+  group_by(medio, id) %>% 
+  top_n(1, wt = gamma) %>% 
+  group_by(medio, topic) %>% 
+  summarise(
+    total = n()
+  ) %>% 
+  mutate(pct = total / sum(total)) %>% 
+  select(medio, topic, pct) %>% 
+  pivot_wider(
+    names_from = topic,
+    values_from = pct
+  )
+
+plot_radar_medio <- function(medio_f){
+  df_radar_filter <- df_radar %>% 
+    filter(medio == medio_f)
+  
+  ggradar(df_radar_filter)
+}
+
+```
+
+Veamos el gráfico para "clarin"
+
+```{r}
+plot_radar_medio("clarin")
+```
+
+Podemos observar que existen un mayor (pero no tanto) porcentaje de noticias del
+tópico 8.
+
+Y veamos ahora el gráfico para "cronica"
+
+```{r}
+plot_radar_medio("cronica")
+```
+
+Acá es notable que las noticias del medio "cronica" son mayormente del tema o tópico
+10 el cual habla de (según creo yo) de casos de violencia de genero, pero no estoy tan
+seguro...
+
+```{r}
+
+#TODO: me parece que hay que reducir la cantidad de tópicos para el LDA, probar con 6!
+
+
+```
+
