@@ -420,3 +420,71 @@ top_temas %>%
   scale_y_reordered()
 ```
 
+
+A continuación vamos a generar un dataset que utilize la métrica **gamma**, que nos
+indica la probabilidad de un documento de pertenecer a cada tópico o tema.
+
+Además construiremos el dataset de tal manera que podamos identificar los tópicos
+que predominan en cada medio y en cada fecha.
+
+
+En primer lugar vamos a obtener el medio y el ID que codificamos en la variable
+`document`
+
+```{r}
+medios_temas <- tidy(medios_lda, matrix = "gamma")
+
+# veamos la estructura inicial del dataset
+head(medios_temas)
+
+# obtenemos medio e ID de la noticia
+medios_temas <- medios_temas %>% 
+  separate(document, into = c("medio", "id"))
+
+# veamos la estructura final del dataset
+head(medios_temas)
+
+```
+
+Ahora vamos a obtener la fecha de cada noticia, a partir del dataset inicial
+
+
+```{r}
+medios_temas_fecha <- medios_temas %>%
+  # para que coincida el tipo de "id" en cada df
+  mutate(id = as.double(id)) %>% 
+  left_join(raw_data_clean %>% select(id, fecha, mes, dia))
+
+head(medios_temas_fecha)
+```
+
+Genial! ahora tenemos un dataset con el valor de **gamma* para cada noticia por medio
+y por fecha. 
+
+Probemos algunas visualizaciones sencillas.
+
+
+## visualización de tópicos "global" por medio
+
+```{r}
+# para cada medio obtenemos los tópicos que suceden con mayor frecuencia
+topicos_medio <- medios_temas_fecha %>% 
+  group_by(medio, id) %>% 
+  top_n(1, wt = gamma)
+
+topicos_medio %>% 
+  group_by(medio, topic) %>% 
+  summarise(
+    total = n()
+  ) %>% 
+  mutate(pct = total / sum(total)) %>% 
+  ggplot(aes(y = reorder_within(topic, pct, medio), 
+             x = pct,
+             fill = medio)) +
+  geom_col(show.legend = FALSE) +
+  labs(y = NULL) +
+  facet_wrap(~ medio, scales = "free") +
+  scale_y_reordered()
+```
+
+De esta manera podemos observar para cada medio, qué tópico o tema predomina mayormente.
