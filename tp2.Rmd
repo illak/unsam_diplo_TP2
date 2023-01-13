@@ -36,6 +36,7 @@ library(ggraph) # An Implementation of Grammar of Graphics for Graphs and Networ
 library(grid) # The Grid Graphics Package
 library(topicmodels) # Topic Models
 library(knitr) # A General-Purpose Package for Dynamic Report Generation in R
+library(gganimate) # A Grammar of Animated Graphics
 ```
 
 # Datasets
@@ -59,7 +60,7 @@ summary(raw_data)
 ```
 # Limpieza inicial
 
-En el primer vistazo de las 10 primeras filas del dataset de noticias, podemos
+En esta primer exploración de las 10 primeras filas del dataset de noticias, podemos
 identificar algunos artículos que no se han descargado correctamente (por el proceso
 scrapeador). Como primer medida vamos a quitar estos registros
 
@@ -132,7 +133,7 @@ conocer de forma "aproximada" las distintas combinaciones de palabras que podemo
 encontrarnos en las noticias. Esto con la esperanza de detectar ciertos patrones 
 que luego tendremos en cuenta en una segunda instancia de limpieza (quizás al remover
 stopwords). Por otra parte, puede resultar interesante visualizar la ocurrencia de
-bigramas en cada medio. Mediante la visualización suelen surgir patrones interesantes
+bigramas en cada medio. Mediante la **visualización** suelen surgir patrones interesantes
 y que pueden influir en la toma de decisiones y en la formulación de conclusiones
 en un análisis.
 
@@ -167,7 +168,7 @@ top_bigramas_x_medio %>%
   group_by(medio) %>%
   top_n(10, wt = n) %>%
   ggplot(aes(x = n, y = reorder_within(bigrama, n, medio))) +
-  geom_col() +
+  geom_col(aes(fill = medio), show.legend = FALSE) +
   geom_text(aes(label = n), hjust = -.1) +
   scale_y_reordered() +
   scale_x_continuous(expand = expansion(mult = c(0, .4))) +
@@ -225,6 +226,10 @@ y finalmente veamos el grafo para `minutouno`
 # grafo para minutouno"
 generar_grafo("minutouno", 150)
 ```
+
+Podemos observar que, con mayor fecuencia, aparecen **números** en "cadenas" del estilo
+"10 años", "20 años", etc, que denotan tiempo y probablemente no sean de nuestro interés.
+Además se nombran redes sociales (*mail*, *twitter*, *facebook*, etc) y fechas. Esto lo tendremos en cuenta para más adelante.
 
 # Enfoque tradicional (TF-IDF)
 
@@ -369,7 +374,7 @@ LDA es uno de los algoritmos más cómunes para `topic modeling` y se guía por 
 Vamos a dejar de lado la consideración del medio únicamente y ahora cada documento 
 va a estar dentificado por una combinación del medio y el ID de la noticia.
 
-Luego vamos a generar un modelo LDA para 10 tópicos. Por razones de eficiencia y
+Luego vamos a generar un modelo LDA para 6 tópicos. Por razones de eficiencia y
 debido a que es un proceso que demora bastante, vamos a guardar el modelo resultante
 para su posterior carga.
 
@@ -387,8 +392,8 @@ if (file.exists("model_LDA.rda")) {
   medios_tdm <- cuenta_palabras %>% 
     cast_dtm(document, word, n)
   
-  # 10 tópicos
-  medios_lda <- LDA(medios_tdm, k = 10, control = list(seed = 42))
+  # 6 tópicos
+  medios_lda <- LDA(medios_tdm, k = 6, control = list(seed = 42))
   medios_lda
   
   # guardamos el modelo (pesado!)
@@ -397,11 +402,12 @@ if (file.exists("model_LDA.rda")) {
 
 ```
 
+Observemos las palabras más "representativas" que el modelo identificó para cada *tópico*.
 
 ```{r}
 medios_temas <- tidy(medios_lda, matrix = "beta")
 
-# top palabras temas en cada topico
+# top palabras en cada topico o tema
 top_temas <- medios_temas %>% 
   group_by(topic) %>% 
   slice_max(beta, n = 10) %>% 
@@ -418,6 +424,29 @@ top_temas %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   scale_y_reordered()
+```
+
+Perfecto! podemos identificar de que cosa trata cada tema o tópic y de esta manera
+vamos a construir un diccionario de tópicos en donde:
+
+* tópico 1: Internacionales
+* tópico 2: Deporte/Fútbol
+* tópico 3: Política
+* tópico 4: Policial/Judicial
+* tópico 5: Sociales/Entretenimiento
+* tópico 6: Economía
+
+```{r tabla tópicos}
+topicos <- data.frame(
+  topic = c(1,2,3,4,5,6),
+  valor = c("Internacionales",
+            "Deporte/Fútbol",
+            "Política",
+            "Policial/Judicial",
+            "Sociales/Entretenimiento",
+            "Economía")
+)
+
 ```
 
 
@@ -478,7 +507,8 @@ topicos_medio %>%
     total = n()
   ) %>% 
   mutate(pct = total / sum(total)) %>% 
-  ggplot(aes(y = reorder_within(topic, pct, medio), 
+  left_join(topicos) %>% 
+  ggplot(aes(y = reorder_within(valor, pct, medio), 
              x = pct,
              fill = medio)) +
   geom_col(show.legend = FALSE) +
@@ -492,7 +522,7 @@ De esta manera podemos observar para cada medio, qué tópico o tema predomina m
 Veamos la misma información pero ahora usando otro tipo de viz.
 
 ```{r gráfico de radar}
-library(ggradar)
+library(ggradar) # Create radar charts using ggplot2
 
 df_radar <- medios_temas_fecha %>% 
   group_by(medio, id) %>% 
@@ -502,7 +532,8 @@ df_radar <- medios_temas_fecha %>%
     total = n()
   ) %>% 
   mutate(pct = total / sum(total)) %>% 
-  select(medio, topic, pct) %>% 
+  left_join(topicos) %>% 
+  select(medio, topic = valor, pct) %>% 
   pivot_wider(
     names_from = topic,
     values_from = pct
@@ -519,27 +550,104 @@ plot_radar_medio <- function(medio_f){
 
 Veamos el gráfico para "clarin"
 
-```{r}
+```{r, fig.dim=c(12,6)}
 plot_radar_medio("clarin")
 ```
 
-Podemos observar que existen un mayor (pero no tanto) porcentaje de noticias del
-tópico 8.
+Podemos observar que existen un mayor (pero no tanto) porcentaje de noticias de "Economía".
 
 Y veamos ahora el gráfico para "cronica"
 
-```{r}
+```{r, fig.dim=c(12,6)}
 plot_radar_medio("cronica")
 ```
 
-Acá es notable que las noticias del medio "cronica" son mayormente del tema o tópico
-10 el cual habla de (según creo yo) de casos de violencia de genero, pero no estoy tan
-seguro...
+Acá es notable que las noticias del medio "cronica" son mayormente de tema "Policial/Judicial".
+
+
+# Variación de tópicos por fecha
+
+Veamos cómo varían los tópicos para cada medio por fecha. Para esto vamos a escribir
+una función que dado un medio, genere una visualización animada.
 
 ```{r}
+generar_plot_animado <- function(medio_f) {
+  anim <- medios_temas_fecha %>% 
+    filter(medio == medio_f) %>% 
+    group_by(id) %>% 
+    top_n(1, wt = gamma) %>%
+    ungroup() %>% 
+    left_join(topicos) %>%
+    group_by(fecha, valor) %>% 
+    summarise(
+      total = n()
+    ) %>% 
+    mutate(Rank = rank(total, ties.method = "first")) %>% 
+    mutate(Rank = as.factor(Rank)) %>% 
+    mutate(pct = total / sum(total)) %>% 
+    mutate(valor = as.factor(valor)) %>% 
+    arrange(fecha, pct) %>% 
+    ggplot() +
+    geom_col(aes(
+      x = fct_reorder(Rank, pct),
+      y = pct,
+      fill = valor,
+      group = valor
+    ), width = .7) +
+    geom_text(aes(
+      x = fct_reorder(Rank, pct), 
+      y = 0,
+      label = valor, group = valor), 
+      hjust = 0,
+      size = 7) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    coord_flip(clip = "off") +
+    labs(y = NULL) +
+    guides(fill = "none") +
+    theme_minimal() +
+    theme(
+      axis.text.y = element_blank(),
+      axis.title.y = element_blank(),
+      axis.text.x = element_text(size = 12),
+      axis.title.x = element_text(size = 13),
+      plot.title = element_text(size = 18)
+    ) +
+    # Animamos la VIZ
+    ggtitle('Mostrando tópicos para {medio_f} en fecha: {closest_state}') +
+    transition_states(fecha, state_length = 0, transition_length = 2) +
+    enter_fly(x_loc = 0, y_loc = 0) +
+    exit_fly(x_loc = 0, y_loc = 0) + 
+    ease_aes('quadratic-in-out') 
+    
+  animate(anim, width = 700, height = 500, 
+        fps = 25, duration = 60, rewind = FALSE)
+}
+```
 
-#TODO: me parece que hay que reducir la cantidad de tópicos para el LDA, probar con 6!
+```{r}
+generar_plot_animado("clarin")
+```
 
 
+Visualización general de evolución de tópicos por fecha
+
+```{r plot tópicos por mes, fig.dim=c(10,9)}
+ medios_temas_fecha %>% 
+    group_by(id) %>% 
+    top_n(1, wt = gamma) %>%
+    mutate(mes = lubridate::floor_date(fecha, 'month')) %>% 
+    group_by(mes, medio, topic) %>% 
+    summarise(
+      total = n()
+    ) %>% 
+    mutate(pct = total / sum(total)) %>% 
+    left_join(topicos) %>% 
+    ggplot(aes(x = mes, y = pct, fill = valor)) +
+    geom_area(alpha = .6) +
+    labs(y = NULL) +
+    scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_fill_discrete(name = "Tópico") +
+    facet_wrap(vars(medio))
 ```
 
