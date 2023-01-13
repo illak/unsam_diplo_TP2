@@ -643,7 +643,7 @@ Visualización general de evolución de tópicos por fecha
     mutate(pct = total / sum(total)) %>% 
     left_join(topicos) %>% 
     ggplot(aes(x = mes, y = pct, fill = valor)) +
-    geom_area(alpha = .6) +
+    geom_area() +
     labs(y = NULL) +
     scale_x_date(date_breaks = "1 month", date_labels = "%b") +
     scale_y_continuous(labels = scales::percent_format()) +
