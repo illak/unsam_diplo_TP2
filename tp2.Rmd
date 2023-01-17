@@ -1,12 +1,13 @@
 ---
 title: "Diplo UNSAM - TP2"
-author: "Illak Zapata"
+author: "Illak Zapata - Francisco Martinelli Massa"
 date: "2023-01-06"
 output: 
-  prettydoc::html_pretty:
-    theme: cayman
-    highlight: github
+  html_document:
     toc: true
+    toc_float: true
+    theme: cerulean
+    highlight: tango
 
 ---
 
@@ -364,6 +365,10 @@ y veamos para el mes 9
 top_words_medio_mes(9)
 ```
 
+Si bien dijimos que ibamos a mostrar el top 10, se puede observar que algunas gráficas 
+muestran más de 10 barras, esto se debe a que existen "empates" entre *rankings* y 
+estos "empates" son considerados como uno.
+
 No hay mucho para destacar del resultado obtenido si únicamente nos enfocamos en
 la métrica de tf-idf por medio. Por esto vamos a realizar un análisis más avanzado 
 usando `topic modeling`.
@@ -557,7 +562,7 @@ plot_radar_medio <- function(medio_f){
 
 Veamos el gráfico para "clarin"
 
-```{r, fig.dim=c(12,6)}
+```{r, fig.dim=c(16,10)}
 plot_radar_medio("clarin")
 ```
 
@@ -565,7 +570,7 @@ Podemos observar que existen un mayor (pero no tanto) porcentaje de noticias de 
 
 Y veamos ahora el gráfico para "cronica"
 
-```{r, fig.dim=c(12,6)}
+```{r, fig.dim=c(16,10)}
 plot_radar_medio("cronica")
 ```
 
