@@ -2,11 +2,18 @@
 title: "Diplo UNSAM - TP2"
 author: "Illak Zapata"
 date: "2023-01-06"
-output: html_document
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE)
 ```
 
 
@@ -316,7 +323,7 @@ por cada medio en un mes en particular (usando el enfoque tf-idf). Para esto
 vamos a definir una función que nos permita pasarle el mes como argumento.
 
 
-```{r función top_words_medio_mes}
+```{r función top_words_medio_mes, fig.dim=c(12,10)}
 top_words_medio_mes <- function(mes_filter, n_top = 10){
   df <- data_clean %>%
     filter(mes == mes_filter) %>% 
@@ -347,13 +354,13 @@ top_words_medio_mes <- function(mes_filter, n_top = 10){
 Y ahora llamemos a nuestra función con algunas combinaciones. Veamos por ejemplo
 para el mes 7
 
-```{r}
+```{r, fig.dim=c(12,10)}
 top_words_medio_mes(7)
 ```
 
 y veamos para el mes 9
 
-```{r}
+```{r, fig.dim=c(12,10)}
 top_words_medio_mes(9)
 ```
 
@@ -458,7 +465,7 @@ que predominan en cada medio y en cada fecha.
 
 
 En primer lugar vamos a obtener el medio y el ID que codificamos en la variable
-`document`
+`document`.
 
 ```{r}
 medios_temas <- tidy(medios_lda, matrix = "gamma")
@@ -477,7 +484,6 @@ head(medios_temas)
 
 Ahora vamos a obtener la fecha de cada noticia, a partir del dataset inicial
 
-
 ```{r}
 medios_temas_fecha <- medios_temas %>%
   # para que coincida el tipo de "id" en cada df
@@ -490,7 +496,7 @@ head(medios_temas_fecha)
 Genial! ahora tenemos un dataset con el valor de **gamma* para cada noticia por medio
 y por fecha. 
 
-Probemos algunas visualizaciones sencillas.
+Probemos algunas visualizaciones.
 
 
 ## visualización de tópicos "global" por medio
@@ -519,7 +525,8 @@ topicos_medio %>%
 
 De esta manera podemos observar para cada medio, qué tópico o tema predomina mayormente.
 
-Veamos la misma información pero ahora usando otro tipo de viz.
+Veamos la misma información pero ahora usando otro tipo de viz (este tipo de visualización
+me pareció interesante para comparar la variación de la métrica gamma en cada medio).
 
 ```{r gráfico de radar}
 library(ggradar) # Create radar charts using ggplot2
@@ -629,7 +636,10 @@ generar_plot_animado("clarin")
 ```
 
 
-Visualización general de evolución de tópicos por fecha
+### Visualización general de evolución de tópicos por fecha
+
+La siguiente visualización muestra la "evolución" en cantidad de noticias por tópico, 
+para cada medio.
 
 ```{r plot tópicos por mes, fig.dim=c(10,9)}
  medios_temas_fecha %>% 
@@ -651,3 +661,8 @@ Visualización general de evolución de tópicos por fecha
     facet_wrap(vars(medio))
 ```
 
+Se puede observar que ciertos medios "priorizan" en cierta forma un tipo de noticias,
+al menos en el **periodo analizado**. Por ejemplo, para *Crónica* podemos notar que la
+mayor cantidad de noticias son *policiales*, mientras que para los medios *Página 12* y *Telám*
+las noticias se asocian mayormente a temas de *política*, y que en *Infobae* "predominan" 
+las noticias *internacionales*.
